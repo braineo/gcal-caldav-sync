@@ -141,7 +141,7 @@ class EventResource(dict):
 
 def main():
     caldav_client = CalDavClient(
-        server_config.caldav["source_url"],
+        server_config.caldav["calendar_url"],
         username=server_config.caldav["username"],
         password=server_config.caldav["password"],
     )
