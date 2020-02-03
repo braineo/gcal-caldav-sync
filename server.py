@@ -1,6 +1,4 @@
 import caldav
-import datetime
-import json
 import os
 import pickle
 import ics
@@ -8,6 +6,8 @@ import googleapiclient.discovery
 import google_auth_oauthlib.flow
 import google.auth.transport.requests
 import logging
+
+import config as server_config
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -29,13 +29,11 @@ class CalDavClient(caldav.DAVClient):
     def get_calendars(self):
         return self._calendars
 
-    def get_calendar(self, calendar_name):
+    def get_calendar_by_url(self, calendar_url):
         for calendar in self._calendars:
-            if calendar.name == calendar_name:
+            if calendar.canonical_url == calendar_url:
                 return calendar
-        log.error(
-            "cannot find calendar %r, avaiable calendars are %r", calendar_name, [c.name for c in self._calendars]
-        )
+        log.error("cannot find calendar %r, avaiable calendars are %r", calendar_url, [c.name for c in self._calendars])
 
 
 class GoogleCalendarClient(object):
@@ -81,42 +79,42 @@ class EventSynchronizer(object):
     gcal_client = None
     gcal_calendar_id = ""
     caldav_client = None
-    caldav_calendar_name = ""
+    caldav_calendar_url = ""
 
-    def __init__(self, gcal_client, gcal_calendar_id, caldav_client, caldav_calendar_name):
+    def __init__(self, gcal_client, gcal_calendar_id, caldav_client, caldav_calendar_url):
         self.gcal_client = gcal_client
         self.gcal_calendar_id = gcal_calendar_id
         self.caldav_client = caldav_client
-        self.caldav_calendar_name = caldav_calendar_name
+        self.caldav_calendar_url = caldav_calendar_url
 
     def sync_once(self, events, ical_calender):
         event = EventResource(next(events))
-        ical_event = event.export_ical()
         try:
-            ical_event = ical_calender.event_by_uid(event.get("iCalUID", ""))
+            found_ical_event = ical_calender.event_by_uid(event.get("iCalUID", ""))
             log.debug("updating event with UID %r", event.get("iCalUID", ""))
-            ical_event.data = event.export_ical()
-            ical_event.save()
+            found_ical_event.data = event.export_ical()
+            found_ical_event.save()
         except caldav.error.NotFoundError:
             log.debug("creating event with UID %r", event.get("iCalUID", ""))
-            ical_calender.add_event(ical_event)
+            ical_calender.add_event(event.export_ical())
         except Exception as e:
             log.error("unexpected error %r", e)
 
     def sync(self):
         events = self.gcal_client.get_events(self.gcal_calendar_id)
-        ical_calender = self.caldav_client.get_calendar(self.caldav_calendar_name)
+        ical_calender = self.caldav_client.get_calendar_by_url(self.caldav_calendar_url)
         try:
             while True:
-                self.sync_once(self, events, ical_calender)
+                self.sync_once(events, ical_calender)
         except StopIteration:
             log.info("finished syncing")
-        except Exception:
-            log.error("cannot sync")
+        except Exception as e:
+            log.error("cannot sync %r", e)
 
 
 class EventResource(dict):
     def export_ical(self):
+        ics_calendar = ics.Calendar()
         ics_event = ics.Event(
             name=self["summary"],
             begin=self.get("start", {}).get("dateTime", None),
@@ -137,14 +135,21 @@ class EventResource(dict):
             geo=None,
             classification=None,
         )
-
-        return ics_event.__str__()
+        ics_calendar.events.add(ics_event)
+        return ics_calendar.__str__()
 
 
 def main():
-    if os.path.exists("caldav.json"):
-        with open("caldav.json") as caldav_conf_file:
-            caldav_conf = json.load(caldav_conf_file)
-    caldav_calender_client = CalDavClient(
-        caldav_conf["source_url"], username=caldav_conf["username"], password=caldav_conf["password"]
+    caldav_client = CalDavClient(
+        server_config.caldav["source_url"],
+        username=server_config.caldav["username"],
+        password=server_config.caldav["password"],
     )
+    gcal_client = GoogleCalendarClient("credentials.json")
+    synchronizer = EventSynchronizer(
+        gcal_client, server_config.gcal["calendar_id"], caldav_client, server_config.caldav["calendar_url"]
+    )
+    synchronizer.sync()
+
+if __name__ == "__main__":
+    main()
