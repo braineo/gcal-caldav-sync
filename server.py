@@ -56,7 +56,7 @@ class CalDavClient(caldav.DAVClient):
         # only search for future events
         caldav_events = calendar.date_search(arrow.now())
         convertor = CalDavIcsConvertor(caldav_events)
-        return convertor.get_resource_events()
+        return convertor.get_resource_events(self._last_sync_datetime)
 
     def set_last_sync_datetime(self):
         self._last_sync_datetime = arrow.now().isoformat()
@@ -185,8 +185,10 @@ class CalDavIcsConvertor(object):
             events |= calendar.events
         return events
 
-    def get_resource_events(self):
+    def get_resource_events(self, min_modify_time=None):
         events = self.get_ics_events()
+        if min_modify_time:
+            return [EventResource.init_from_ics(event) for event in events if event.last_modified >= min_modify_time]
         return [EventResource.init_from_ics(event) for event in events]
 
 class EventResource(dict):
