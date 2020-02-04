@@ -7,6 +7,7 @@ import google_auth_oauthlib.flow
 import google.auth.transport.requests
 import logging
 import json
+import arrow
 import config as server_config
 
 logging.basicConfig()
@@ -17,9 +18,21 @@ log.setLevel(logging.DEBUG)
 class CalDavClient(caldav.DAVClient):
     _principal = None
     _calendars = None
+    _last_sync_datetime = None
+    _config = None
 
-    def __init__(self, url, proxy=None, username=None, password=None, auth=None, ssl_verify_cert=True):
-        super(CalDavClient, self).__init__(url, proxy, username, password, auth, ssl_verify_cert)
+    def __init__(self, config):
+        self._config = config
+        super(CalDavClient, self).__init__(
+            url=self._config.caldav["calendar_url"],
+            username=self._config.caldav["username"],
+            password=self._config.caldav["password"],
+        )
+        if os.path.exists(self._config["last_sync_datetime_path"]):
+            with open(self._config["last_sync_datetime_path"]) as f:
+                datetime_str = f.read().strip()
+                if datetime_str:
+                    self._last_sync_datetime = arrow.get(datetime_str)
         self._connect()
 
     def _connect(self):
@@ -34,6 +47,17 @@ class CalDavClient(caldav.DAVClient):
             if calendar.canonical_url == calendar_url:
                 return calendar
         log.error("cannot find calendar %r, avaiable calendars are %r", calendar_url, [c.name for c in self._calendars])
+
+
+    def get_sync_events(self, calendar_url):
+        caldendar = self.get_calendar_by_url(calendar_url)
+        # only search for future events
+        caldav_events = caldendar.date_search(arrow.now())
+
+    def set_last_sync_datetime(self):
+        self._last_sync_datetime = arrow.now().isoformat()
+        with open(self._config["last_sync_datetime_path"], 'w') as f:
+            f.write(self._last_sync_datetime.isoformat())
 
 
 class GoogleCalendarClient(object):
@@ -123,7 +147,7 @@ class EventSynchronizer(object):
                 found_ical_event.delete()
         except caldav.error.NotFoundError:
             if event["status"] == "cancelled":
-                log.debug('event with UID %r not found, maybe it is removed, skipping', uid)
+                log.debug("event with UID %r not found, maybe it is removed, skipping", uid)
                 return
             log.debug("creating event with UID %r", uid)
             ical_calender.add_event(event.export_ical())
@@ -183,11 +207,7 @@ class EventResource(dict):
 
 
 def main():
-    caldav_client = CalDavClient(
-        server_config.caldav["calendar_url"],
-        username=server_config.caldav["username"],
-        password=server_config.caldav["password"],
-    )
+    caldav_client = CalDavClient(server_config.caldav)
     gcal_client = GoogleCalendarClient(server_config.gcal)
     synchronizer = EventSynchronizer(
         gcal_client, server_config.gcal["calendar_id"], caldav_client, server_config.caldav["calendar_url"]
