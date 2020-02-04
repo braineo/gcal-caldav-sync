@@ -120,6 +120,7 @@ class EventSynchronizer(object):
             ical_calender.add_event(event.export_ical())
         except Exception as e:
             log.error("unexpected error %r", e)
+            raise e
 
     def sync(self):
         events = self.gcal_client.get_sync_events(self.gcal_calendar_id)
@@ -139,8 +140,6 @@ class EventResource(dict):
         ics_calendar = ics.Calendar()
         ics_event = ics.Event(
             name=self["summary"],
-            begin=self.get("start", {}).get("dateTime", None) or self.get("start", {}).get("date", None),
-            end=self.get("end", {}).get("dateTime", None) or self.get("end", {}).get("date", None),
             duration=None,
             uid=self.get("iCalUID", None),
             description=self.get("description", None),
@@ -150,13 +149,26 @@ class EventResource(dict):
             url=None,
             transparent=self.get("transparency", None),
             alarms=None,
-            attendees=[ics.Attendee(attendee['email']) for attendee in self.get("attendees", []) if attendee.get("email", None)],
+            attendees=[
+                ics.Attendee(attendee["email"]) for attendee in self.get("attendees", []) if attendee.get("email", None)
+            ],
             categories=None,
             status=None,
             organizer=self.get("organizer", {}).get("email", None),
             geo=None,
             classification=None,
         )
+
+        for gcal_key, ics_key in [("start", "begin"), ("end", "end")]:
+            is_one_day_event = self.get(gcal_key, {}).get("dateTime", None) is None
+            arror_time = (
+                self.get(gcal_key, {}).get("dateTime", None)
+                if not is_one_day_event
+                else arrow.get(self.get(gcal_key, {}).get("date", None))
+            )
+            setattr(ics_event, ics_key, arror_time)
+            if is_one_day_event:
+                ics_event.make_all_day()
         ics_calendar.events.add(ics_event)
         return ics_calendar.__str__()
 
