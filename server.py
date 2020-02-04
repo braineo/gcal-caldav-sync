@@ -46,13 +46,17 @@ class CalDavClient(caldav.DAVClient):
         for calendar in self._calendars:
             if calendar.canonical_url == calendar_url:
                 return calendar
-        log.error("cannot find calendar %r, avaiable calendars are %r", calendar_url, [c.name for c in self._calendars])
+        log.error("cannot find calendar %r, avaiable calendars are %r", calendar_url, [c.canonical_url for c in self._calendars])
 
 
     def get_sync_events(self, calendar_url):
-        caldendar = self.get_calendar_by_url(calendar_url)
+        calendar = self.get_calendar_by_url(calendar_url)
+        if not calendar:
+            return []
         # only search for future events
-        caldav_events = caldendar.date_search(arrow.now())
+        caldav_events = calendar.date_search(arrow.now())
+        convertor = CalDavIcsConvertor(caldav_events)
+        return convertor.get_resource_events()
 
     def set_last_sync_datetime(self):
         self._last_sync_datetime = arrow.now().isoformat()
