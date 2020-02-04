@@ -168,7 +168,42 @@ class EventSynchronizer(object):
             log.exception("cannot sync due to %r", e)
 
 
+class CalDavIcsConvertor(object):
+    _event_list = None
+
+    def __init__(self, event_list):
+        self._event_list = event_list
+
+    def get_ics_events(self):
+        canlendar_list = ics.Calendar.parse_multiple('\n'.join(caldav_event.data for caldav_event in self._event_list))
+        events = set()
+        for calendar in canlendar_list:
+            events |= calendar.events
+        return events
+
+    def get_resource_events(self):
+        events = self.get_ics_events()
+        return [EventResource.init_from_ics(event) for event in events]
+
 class EventResource(dict):
+
+    @classmethod
+    def init_from_ics(cls, ics_event):
+        event = {
+            "summary": ics_event.name,
+            "start": ics_event.begin.isoformat() if ics_event.begin else None,
+            "end": ics_event.begin.isoformat() if ics_event.end else None,
+            'iCalUID': ics_event.uid,
+            'description': ics_event.description,
+            "created": ics_event.created.isoformat() if ics_event.created else None,
+            "updated": ics_event.last_modified.isoformat() if ics_event.last_modified else None,
+            "location": ics_event.location,
+            "transparency": "transparent" if ics_event.transparent else "opaque",
+            "status": ics_event.status,
+            "organizer": {"email": ics_event.organizer.replace('mailto:', '')} if ics_event.organizer is not None else None,
+        }
+        return cls(event)
+
     def export_ical(self):
         ics_calendar = ics.Calendar()
         ics_event = ics.Event(
@@ -180,7 +215,7 @@ class EventResource(dict):
             last_modified=self.get("updated", None),
             location=self.get("location", None),
             url=None,
-            transparent=self.get("transparency", None),
+            transparent=self.get("transparency", None) == "transparent",
             alarms=None,
             attendees=[
                 ics.Attendee(attendee["email"]) for attendee in self.get("attendees", []) if attendee.get("email", None)
