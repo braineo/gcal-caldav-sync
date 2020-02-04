@@ -1,5 +1,7 @@
 import os
 
+config_dir = os.path.dirname(os.path.abspath(__file__))
+
 caldav = {
     "username": "username",
     "password": "password",
@@ -8,5 +10,6 @@ caldav = {
 
 gcal = {
     "calendar_id": "calendar_id of google calender",
-    "credentials_path": os.path.join(os.path.dirname(os.path.abspath(__file__)), "credentials.json"),
+    "credentials_path": os.path.join(config_dir, "credentials.json"),
+    "sync_token_path": os.path.join(config_dir, "sync_token.json"),
 }
