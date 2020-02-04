@@ -128,7 +128,7 @@ class EventResource(dict):
             url=None,
             transparent=self.get("transparency", None),
             alarms=None,
-            attendees=None,
+            attendees=[ics.Attendee(attendee['email']) for attendee in self.get("attendees", []) if attendee.get("email", None)],
             categories=None,
             status=None,
             organizer=self.get("organizer", {}).get("email", None),
