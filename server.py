@@ -46,8 +46,11 @@ class CalDavClient(caldav.DAVClient):
         for calendar in self._calendars:
             if calendar.canonical_url == calendar_url:
                 return calendar
-        log.error("cannot find calendar %r, avaiable calendars are %r", calendar_url, [c.canonical_url for c in self._calendars])
-
+        log.error(
+            "cannot find calendar %r, avaiable calendars are %r",
+            calendar_url,
+            [c.canonical_url for c in self._calendars],
+        )
 
     def get_sync_events(self, calendar_url):
         calendar = self.get_calendar_by_url(calendar_url)
@@ -60,7 +63,7 @@ class CalDavClient(caldav.DAVClient):
 
     def set_last_sync_datetime(self):
         self._last_sync_datetime = arrow.now().isoformat()
-        with open(self._config["last_sync_datetime_path"], 'w') as f:
+        with open(self._config["last_sync_datetime_path"], "w") as f:
             f.write(self._last_sync_datetime.isoformat())
 
 
@@ -179,7 +182,7 @@ class CalDavIcsConvertor(object):
         self._event_list = event_list
 
     def get_ics_events(self):
-        canlendar_list = ics.Calendar.parse_multiple('\n'.join(caldav_event.data for caldav_event in self._event_list))
+        canlendar_list = ics.Calendar.parse_multiple("\n".join(caldav_event.data for caldav_event in self._event_list))
         events = set()
         for calendar in canlendar_list:
             events |= calendar.events
@@ -191,22 +194,22 @@ class CalDavIcsConvertor(object):
             return [EventResource.init_from_ics(event) for event in events if event.last_modified >= min_modify_time]
         return [EventResource.init_from_ics(event) for event in events]
 
-class EventResource(dict):
 
+class EventResource(dict):
     @classmethod
     def init_from_ics(cls, ics_event):
         event = {
             "summary": ics_event.name,
             "start": ics_event.begin.isoformat() if ics_event.begin else None,
             "end": ics_event.begin.isoformat() if ics_event.end else None,
-            'iCalUID': ics_event.uid,
-            'description': ics_event.description,
+            "iCalUID": ics_event.uid,
+            "description": ics_event.description,
             "created": ics_event.created.isoformat() if ics_event.created else None,
             "updated": ics_event.last_modified.isoformat() if ics_event.last_modified else None,
             "location": ics_event.location,
             "transparency": "transparent" if ics_event.transparent else "opaque",
             "status": ics_event.status,
-            "organizer": {"email": ics_event.organizer.replace('mailto:', '')} if ics_event.organizer is not None else None,
+            "organizer": {"email": ics_event.organizer.replace("mailto:", "")} if ics_event.organizer is not None else None,
         }
         return cls(event)
 
