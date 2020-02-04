@@ -48,7 +48,7 @@ class GoogleCalendarClient(object):
         self._config = config
         if os.path.exists(self._config["sync_token_path"]):
             with open(self._config["sync_token_path"]) as f:
-                self._cache = json.load(f)
+                self._sync_token = json.load(f)
         else:
             self._sync_token = {}
         if os.path.exists("token.pickle"):
