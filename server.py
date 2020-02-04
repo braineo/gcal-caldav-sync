@@ -24,9 +24,9 @@ class CalDavClient(caldav.DAVClient):
     def __init__(self, config):
         self._config = config
         super(CalDavClient, self).__init__(
-            url=self._config.caldav["calendar_url"],
-            username=self._config.caldav["username"],
-            password=self._config.caldav["password"],
+            url=self._config["calendar_url"],
+            username=self._config["username"],
+            password=self._config["password"],
         )
         if os.path.exists(self._config["last_sync_datetime_path"]):
             with open(self._config["last_sync_datetime_path"]) as f:
