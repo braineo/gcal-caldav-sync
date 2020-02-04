@@ -6,7 +6,7 @@ import googleapiclient.discovery
 import google_auth_oauthlib.flow
 import google.auth.transport.requests
 import logging
-
+import json
 import config as server_config
 
 logging.basicConfig()
@@ -40,9 +40,17 @@ class GoogleCalendarClient(object):
 
     _credentials = None
     _service = None
+    _sync_token = None  # cache for synchronization like sync token key
+    _config = None
     SCOPES = ["https://www.googleapis.com/auth/calendar"]  # read/write access to Calendars
 
-    def __init__(self, client_secrets_file_path):
+    def __init__(self, config):
+        self._config = config
+        if os.path.exists(self._config["sync_token_path"]):
+            with open(self._config["sync_token_path"]) as f:
+                self._cache = json.load(f)
+        else:
+            self._sync_token = {}
         if os.path.exists("token.pickle"):
             with open("token.pickle", "rb") as token:
                 self._credentials = pickle.load(token)
@@ -52,7 +60,7 @@ class GoogleCalendarClient(object):
                 self._credentials.refresh(google.auth.transport.requests.Request())
             else:
                 flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
-                    client_secrets_file_path, GoogleCalendarClient.SCOPES
+                    self._config["credentials_path"], GoogleCalendarClient.SCOPES
                 )
                 self._credentials = flow.run_local_server(port=0)
             # Save the credentials for the next run
@@ -63,15 +71,28 @@ class GoogleCalendarClient(object):
             "calendar", "v3", credentials=self._credentials, cache_discovery=False
         )
 
-    def get_events(self, calendar_name):
-        page_token = None
-        events = self._service.events().list(calendarId=calendar_name, pageToken=page_token).execute()
+    def get_events(self, calendar_id, events):
+        next_page_token = None
         while True:
-            for event in events["items"]:
+            for event in events.get("items", []):
                 yield event
-            page_token = events.get("nextPageToken")
-            if not page_token:
+            events = self._service.events().list(calendarId=calendar_id, pageToken=next_page_token).execute()
+            next_page_token = events.get("nextPageToken", None)
+
+            if not next_page_token:
+                self._sync_token[calendar_id] = events.get("nextSyncToken", None)
                 break
+
+    def get_sync_events(self, calendar_id):
+        sync_token = self._sync_token.get(calendar_id, None)
+        # will be a full sync if sync_token is None
+        events = self._service.events().list(calendarId=calendar_id, syncToken=sync_token).execute()
+
+        return self.get_events(calendar_id, events)
+
+    def save_sync_token(self):
+        with open(self._config["sync_token_path"], "w") as f:
+            json.dump(self._sync_token, f)
 
 
 class EventSynchronizer(object):
@@ -101,15 +122,16 @@ class EventSynchronizer(object):
             log.error("unexpected error %r", e)
 
     def sync(self):
-        events = self.gcal_client.get_events(self.gcal_calendar_id)
+        events = self.gcal_client.get_sync_events(self.gcal_calendar_id)
         ical_calender = self.caldav_client.get_calendar_by_url(self.caldav_calendar_url)
         try:
             while True:
                 self.sync_once(events, ical_calender)
         except StopIteration:
             log.info("finished syncing")
+            self.gcal_client.save_sync_token()
         except Exception as e:
-            log.error("cannot sync %r", e)
+            log.exception("cannot sync due to %r", e)
 
 
 class EventResource(dict):
@@ -145,7 +167,7 @@ def main():
         username=server_config.caldav["username"],
         password=server_config.caldav["password"],
     )
-    gcal_client = GoogleCalendarClient("credentials.json")
+    gcal_client = GoogleCalendarClient(server_config.gcal)
     synchronizer = EventSynchronizer(
         gcal_client, server_config.gcal["calendar_id"], caldav_client, server_config.caldav["calendar_url"]
     )
