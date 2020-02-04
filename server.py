@@ -117,8 +117,8 @@ class EventResource(dict):
         ics_calendar = ics.Calendar()
         ics_event = ics.Event(
             name=self["summary"],
-            begin=self.get("start", {}).get("dateTime", None),
-            end=self.get("end", {}).get("dateTime", None),
+            begin=self.get("start", {}).get("dateTime", None) or self.get("start", {}).get("date", None),
+            end=self.get("end", {}).get("dateTime", None) or self.get("end", {}).get("date", None),
             duration=None,
             uid=self.get("iCalUID", None),
             description=self.get("description", None),
