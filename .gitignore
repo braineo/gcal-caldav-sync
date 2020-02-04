@@ -128,5 +128,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-#
+# User config related
 credentials.json
+sync_token.json
+config/__init__.py
+
