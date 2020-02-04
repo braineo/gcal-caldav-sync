@@ -111,12 +111,21 @@ class EventSynchronizer(object):
     def sync_once(self, events, ical_calender):
         event = EventResource(next(events))
         try:
-            found_ical_event = ical_calender.event_by_uid(event.get("iCalUID", ""))
-            log.debug("updating event with UID %r", event.get("iCalUID", ""))
-            found_ical_event.data = event.export_ical()
-            found_ical_event.save()
+            log.debug("processing event %r", event)
+            uid = event.get("iCalUID", "") or "{}@google.com".format(event.get("id", ""))
+            found_ical_event = ical_calender.event_by_uid(uid)
+            if event["status"] != "cancelled":
+                log.debug("updating event with UID %r", uid)
+                found_ical_event.data = event.export_ical()
+                found_ical_event.save()
+            else:
+                log.debug("deleting event with UID %r", uid)
+                found_ical_event.delete()
         except caldav.error.NotFoundError:
-            log.debug("creating event with UID %r", event.get("iCalUID", ""))
+            if event["status"] == "cancelled":
+                log.debug('event with UID %r not found, maybe it is removed, skipping', uid)
+                return
+            log.debug("creating event with UID %r", uid)
             ical_calender.add_event(event.export_ical())
         except Exception as e:
             log.error("unexpected error %r", e)
@@ -139,7 +148,7 @@ class EventResource(dict):
     def export_ical(self):
         ics_calendar = ics.Calendar()
         ics_event = ics.Event(
-            name=self["summary"],
+            name=self.get("summary", None),
             duration=None,
             uid=self.get("iCalUID", None),
             description=self.get("description", None),
@@ -153,7 +162,7 @@ class EventResource(dict):
                 ics.Attendee(attendee["email"]) for attendee in self.get("attendees", []) if attendee.get("email", None)
             ],
             categories=None,
-            status=None,
+            status=self.get("status", None),
             organizer=self.get("organizer", {}).get("email", None),
             geo=None,
             classification=None,
@@ -164,7 +173,7 @@ class EventResource(dict):
             arror_time = (
                 self.get(gcal_key, {}).get("dateTime", None)
                 if not is_one_day_event
-                else arrow.get(self.get(gcal_key, {}).get("date", None))
+                else self.get(gcal_key, {}).get("date", None)
             )
             setattr(ics_event, ics_key, arror_time)
             if is_one_day_event:
