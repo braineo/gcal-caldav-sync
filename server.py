@@ -24,9 +24,7 @@ class CalDavClient(caldav.DAVClient):
     def __init__(self, config):
         self._config = config
         super(CalDavClient, self).__init__(
-            url=self._config["calendar_url"],
-            username=self._config["username"],
-            password=self._config["password"],
+            url=self._config["calendar_url"], username=self._config["username"], password=self._config["password"],
         )
         if os.path.exists(self._config["last_sync_datetime_path"]):
             with open(self._config["last_sync_datetime_path"]) as f:
@@ -140,14 +138,14 @@ class EventSynchronizer(object):
         self.caldav_calendar_url = caldav_calendar_url
 
     def sync_once(self, events, ical_calender):
-        event = EventResource(next(events))
+        event = EventResource.init_from_gcal(next(events))
         try:
             log.debug("processing event %r", event)
             uid = event.get("iCalUID", "") or "{}@google.com".format(event.get("id", ""))
             found_ical_event = ical_calender.event_by_uid(uid)
             if event["status"] != "cancelled":
                 log.debug("updating event with UID %r", uid)
-                found_ical_event.data = event.export_ical()
+                found_ical_event.data = event.get_ical()
                 found_ical_event.save()
             else:
                 log.debug("deleting event with UID %r", uid)
@@ -157,7 +155,7 @@ class EventSynchronizer(object):
                 log.debug("event with UID %r not found, maybe it is removed, skipping", uid)
                 return
             log.debug("creating event with UID %r", uid)
-            ical_calender.add_event(event.export_ical())
+            ical_calender.add_event(event.get_ical())
         except Exception as e:
             log.error("unexpected error %r", e)
             raise e
@@ -197,29 +195,56 @@ class CalDavIcsConvertor(object):
 
 class EventResource(dict):
     @classmethod
+    def init_from_gcal(cls, gcal_event):
+
+        for key in ["created", "updated"]:
+            if key in gcal_event:
+                gcal_event[key] = arrow.get(gcal_event[key])
+
+        is_all_day_event = False
+        for key in ["start", "end"]:
+            is_all_day_event = is_all_day_event or gcal_event.get(key, {}).get("dateTime", None) is None
+            arror_time = (
+                gcal_event.get(key, {}).get("dateTime", None)
+                if not is_all_day_event
+                else gcal_event.get(key, {}).get("date", None)
+            )
+            gcal_event[key] = arror_time
+
+        gcal_event["all_day_event"] = is_all_day_event
+
+        return cls(gcal_event)
+
+    @classmethod
     def init_from_ics(cls, ics_event):
         event = {
             "summary": ics_event.name,
-            "start": ics_event.begin.isoformat() if ics_event.begin else None,
-            "end": ics_event.begin.isoformat() if ics_event.end else None,
+            "start": ics_event.begin,
+            "end": ics_event.end,
             "iCalUID": ics_event.uid,
             "description": ics_event.description,
-            "created": ics_event.created.isoformat() if ics_event.created else None,
-            "updated": ics_event.last_modified.isoformat() if ics_event.last_modified else None,
+            "created": ics_event.created,
+            "updated": ics_event.last_modified,
             "location": ics_event.location,
             "transparency": "transparent" if ics_event.transparent else "opaque",
             "status": ics_event.status,
-            "organizer": {"email": ics_event.organizer.replace("mailto:", "")} if ics_event.organizer is not None else None,
+            "all_day_event": ics_event.all_day,
+            "organizer": {"email": ics_event.organizer.replace("mailto:", "")}
+            if ics_event.organizer is not None
+            else None,
         }
+
         return cls(event)
 
-    def export_ical(self):
+    def get_ical(self):
         ics_calendar = ics.Calendar()
         ics_event = ics.Event(
             name=self.get("summary", None),
             duration=None,
             uid=self.get("iCalUID", None),
             description=self.get("description", None),
+            begin=self.get("start", None),
+            end=self.get("end", None),
             created=self.get("created", None),
             last_modified=self.get("updated", None),
             location=self.get("location", None),
@@ -236,16 +261,8 @@ class EventResource(dict):
             classification=None,
         )
 
-        for gcal_key, ics_key in [("start", "begin"), ("end", "end")]:
-            is_one_day_event = self.get(gcal_key, {}).get("dateTime", None) is None
-            arror_time = (
-                self.get(gcal_key, {}).get("dateTime", None)
-                if not is_one_day_event
-                else self.get(gcal_key, {}).get("date", None)
-            )
-            setattr(ics_event, ics_key, arror_time)
-            if is_one_day_event:
-                ics_event.make_all_day()
+        if self["all_day_event"]:
+            ics_event.make_all_day()
         ics_calendar.events.add(ics_event)
         return ics_calendar.__str__()
 
