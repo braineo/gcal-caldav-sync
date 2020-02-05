@@ -8,6 +8,7 @@ import google.auth.transport.requests
 import logging
 import json
 import arrow
+import copy
 import config as server_config
 
 logging.basicConfig()
@@ -265,6 +266,25 @@ class EventResource(dict):
             ics_event.make_all_day()
         ics_calendar.events.add(ics_event)
         return ics_calendar.__str__()
+
+
+    def get_gcal(self):
+        # reverse process of init
+        gcal_event = copy.deepcopy(self)
+        for key in ["created", "updated"]:
+            if key in self:
+                gcal_event[key] = gcal_event[key].isoformat()
+
+        is_all_day_event = gcal_event["all_day_event"]
+        for key in ["start", "end"]:
+            serialized_time = {}
+            if is_all_day_event:
+                serialized_time['date'] = gcal_event[key] #TODO
+            else:
+                serialized_time['dateTime'] = gcal_event[key].isoformat()
+            gcal_event[key] = serialized_time
+
+        return gcal_event
 
 
 def main():
