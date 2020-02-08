@@ -9,11 +9,8 @@ import logging
 import json
 import arrow
 import copy
-import config as server_config
 
-logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class CalDavClient(caldav.DAVClient):
@@ -285,15 +282,3 @@ class EventResource(dict):
             gcal_event[key] = serialized_time
 
         return gcal_event
-
-
-def main():
-    caldav_client = CalDavClient(server_config.caldav)
-    gcal_client = GoogleCalendarClient(server_config.gcal)
-    synchronizer = EventSynchronizer(
-        gcal_client, server_config.gcal["calendar_id"], caldav_client, server_config.caldav["calendar_url"]
-    )
-    synchronizer.sync()
-
-if __name__ == "__main__":
-    main()
