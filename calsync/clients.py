@@ -99,25 +99,39 @@ class GoogleCalendarClient(object):
         )
 
     def get_events(self, calendar_id, events):
+        """Get all events items from paginated api response
+
+        :param calendar_id: google calendar id
+        :param events: initial reponse of event.list
+        :returns: all events
+        :rtype: list
+
+        """
+        all_events = []
         next_page_token = None
         while True:
             for event in events.get("items", []):
-                yield event
-            events = self._service.events().list(calendarId=calendar_id, pageToken=next_page_token).execute()
+                event['timeZone'] = events['timeZone']
+                all_events.append[event]
+            events = (
+                self._service.events()
+                .list(maxResults=2500, calendarId=calendar_id, pageToken=next_page_token)
+                .execute()
+            )
             next_page_token = events.get("nextPageToken", None)
 
             if not next_page_token:
                 self._sync_token[calendar_id] = events.get("nextSyncToken", None)
                 break
+        return all_events
 
     def get_sync_events(self, calendar_id):
         sync_token = self._sync_token.get(calendar_id, None)
         # will be a full sync if sync_token is None
-        events = self._service.events().list(calendarId=calendar_id, syncToken=sync_token).execute()
+        events = self._service.events().list(maxResults=2500, calendarId=calendar_id, syncToken=sync_token).execute()
 
         return self.get_events(calendar_id, events)
 
     def save_sync_token(self):
         with open(self._config["sync_token_path"], "w") as f:
             json.dump(self._sync_token, f)
-
