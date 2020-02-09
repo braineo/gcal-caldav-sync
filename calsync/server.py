@@ -1,6 +1,6 @@
-import os
 import logging
-
+import caldav
+from . import resource
 
 log = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class EventSynchronizer(object):
         self.caldav_calendar_url = caldav_calendar_url
 
     def sync_once(self, events, ical_calender):
-        event = EventResource.init_from_gcal(next(events))
+        event = resource.EventResource.init_from_gcal(next(events))
         try:
             log.debug("processing event %r", event)
             uid = event.get("iCalUID", "") or "{}@google.com".format(event.get("id", ""))

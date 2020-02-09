@@ -2,11 +2,16 @@ import os
 import caldav
 import pickle
 import logging
+import json
+import arrow
 import googleapiclient.discovery
 import google_auth_oauthlib.flow
 import google.auth.transport.requests
 
+from . import resource
+
 log = logging.getLogger(__name__)
+
 
 class CalDavClient(caldav.DAVClient):
     _principal = None
@@ -49,7 +54,7 @@ class CalDavClient(caldav.DAVClient):
             return []
         # only search for future events
         caldav_events = calendar.date_search(arrow.now())
-        convertor = CalDavIcsConvertor(caldav_events)
+        convertor = resource.CalDavIcsConvertor(caldav_events)
         return convertor.get_resource_events(self._last_sync_datetime)
 
     def set_last_sync_datetime(self):
