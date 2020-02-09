@@ -112,7 +112,7 @@ class GoogleCalendarClient(object):
         while True:
             for event in events.get("items", []):
                 event['timeZone'] = events['timeZone']
-                all_events.append[event]
+                all_events.append(event)
             events = (
                 self._service.events()
                 .list(maxResults=2500, calendarId=calendar_id, pageToken=next_page_token)
