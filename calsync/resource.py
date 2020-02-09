@@ -2,6 +2,7 @@ import ics
 import copy
 import arrow
 
+
 class CalDavIcsConvertor(object):
     _event_list = None
 
@@ -34,9 +35,14 @@ class EventResource(dict):
         for key in ["start", "end"]:
             is_all_day_event = is_all_day_event or gcal_event.get(key, {}).get("dateTime", None) is None
             arror_time = (
-                gcal_event.get(key, {}).get("dateTime", None)
+                arrow.get(gcal_event.get(key, {}).get("dateTime", None))
                 if not is_all_day_event
-                else gcal_event.get(key, {}).get("date", None)
+                else arrow.get(
+                    "{date} {timeZone}".format(
+                        date=gcal_event.get(key, {}).get("date", None), timeZone=gcal_event.get("timeZone")
+                    ),
+                    "YYYY-MM-DD ZZZ",
+                )
             )
             gcal_event[key] = arror_time
 
@@ -94,7 +100,6 @@ class EventResource(dict):
             ics_event.make_all_day()
         ics_calendar.events.add(ics_event)
         return ics_calendar.__str__()
-
 
     def get_gcal(self):
         # reverse process of init
