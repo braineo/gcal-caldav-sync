@@ -112,9 +112,9 @@ class EventResource(dict):
         for key in ["start", "end"]:
             serialized_time = {}
             if is_all_day_event:
-                serialized_time['date'] = gcal_event[key] #TODO
+                serialized_time["date"] = gcal_event[key].date().isoformat()
             else:
-                serialized_time['dateTime'] = gcal_event[key].isoformat()
+                serialized_time["dateTime"] = gcal_event[key].isoformat()
             gcal_event[key] = serialized_time
 
         return gcal_event
