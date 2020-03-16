@@ -4,7 +4,6 @@ import arrow
 
 
 class CalDavIcsConvertor(object):
-    _event_list = None
 
     def __init__(self, event_list):
         self._event_list = event_list
