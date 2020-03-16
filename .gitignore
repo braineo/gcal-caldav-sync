@@ -133,3 +133,7 @@ credentials.json
 sync_token.json
 config/__init__.py
 token.pickle
+
+# IDE
+.idea/
+.vscode/
