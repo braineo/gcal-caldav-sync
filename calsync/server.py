@@ -17,8 +17,8 @@ class EventSynchronizer(object):
         self.caldav_client = caldav_client
         self.caldav_calendar_url = caldav_calendar_url
 
-    def sync_once(self, events, ical_calender):
-        event = resource.EventResource.init_from_gcal(next(events))
+    def sync_once(self, event, ical_calender):
+
         try:
             log.debug("processing event %r", event)
             uid = event.get("iCalUID", "") or "{}@google.com".format(event.get("id", ""))
@@ -45,7 +45,8 @@ class EventSynchronizer(object):
         ical_calender = self.caldav_client.get_calendar_by_url(self.caldav_calendar_url)
         try:
             while True:
-                self.sync_once(events, ical_calender)
+                event = resource.EventResource.init_from_gcal(next(events))
+                self.sync_once(event, ical_calender)
         except StopIteration:
             log.info("finished syncing")
             self.gcal_client.save_sync_token()
