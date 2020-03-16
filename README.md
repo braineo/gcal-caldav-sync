@@ -6,6 +6,8 @@ I thought maybe Google calendar support caldav and it turned out to be a missing
 
 What this program does is extermely simple --- try to do 2 ways synchronization between Google calendar and caldav. Because if someone else can send you event invitations that you are not the only source creating events. Otherwise 1 way synchronization is good enough.
 
+As a result, syncing from google to caldav is better supported with nice API google provides (delete supported). syncing from caldav to google calendar unfortunately only supports creation and update (delete not support)
+
 Developed under Python 3.8.1
 
 ## Getting Started
