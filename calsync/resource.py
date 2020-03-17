@@ -61,7 +61,7 @@ class EventResource(dict):
             "updated": ics_event.last_modified,
             "location": ics_event.location,
             "transparency": "transparent" if ics_event.transparent else "opaque",
-            "status": ics_event.status,
+            "status": ics_event.status.lower() if ics_event.status is not None else ics_event.status,
             "all_day_event": ics_event.all_day,
             "organizer": {"email": ics_event.organizer.replace("mailto:", "")}
             if ics_event.organizer is not None
@@ -103,10 +103,11 @@ class EventResource(dict):
     def get_gcal(self):
         # reverse process of init
         gcal_event = copy.deepcopy(self)
+        gcal_event['kind'] = 'calendar#event'
         for key in ["created", "updated"]:
             if key in self:
-                gcal_event[key] = gcal_event[key].isoformat()
-
+                utc_time = gcal_event[key].to('utc')
+                gcal_event[key] = utc_time.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
         is_all_day_event = gcal_event["all_day_event"]
         for key in ["start", "end"]:
             serialized_time = {}
@@ -116,4 +117,4 @@ class EventResource(dict):
                 serialized_time["dateTime"] = gcal_event[key].isoformat()
             gcal_event[key] = serialized_time
 
-        return gcal_event
+        return {key: value for key, value in gcal_event.items() if value is not None}
