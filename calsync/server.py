@@ -26,21 +26,21 @@ class EventSynchronizer(object):
         """
 
         try:
-            log.debug("processing event %r", event)
+            log.info("processing event %r", event)
             uid = event.get("iCalUID", "") or "{}@google.com".format(event.get("id", ""))
             found_ical_event = ical_calender.event_by_uid(uid)
             if event["status"] != "cancelled":
-                log.debug("updating event with UID %r", uid)
+                log.info("updating event with UID %r", uid)
                 found_ical_event.data = event.get_ical()
                 found_ical_event.save()
             else:
-                log.debug("deleting event with UID %r", uid)
+                log.info("deleting event with UID %r", uid)
                 found_ical_event.delete()
         except caldav.error.NotFoundError:
             if event["status"] == "cancelled":
-                log.debug("event with UID %r not found, maybe it is removed, skipping", uid)
+                log.info("event with UID %r not found, maybe it is removed, skipping", uid)
                 return
-            log.debug("creating event with UID %r", uid)
+            log.info("creating event with UID %r", uid)
             ical_calender.add_event(event.get_ical())
         except Exception as e:
             log.error("unexpected error %r", e)
