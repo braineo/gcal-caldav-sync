@@ -48,14 +48,14 @@ class CalDavClient(caldav.DAVClient):
             [c.canonical_url for c in self._calendars],
         )
 
-    def get_sync_events(self, calendar_url):
+    def get_events(self, calendar_url, time_min):
         calendar = self.get_calendar_by_url(calendar_url)
         if not calendar:
             return []
         # only search for future events
-        caldav_events = calendar.date_search(arrow.now())
+        caldav_events = calendar.date_search(time_min)
         convertor = resource.CalDavIcsConvertor(caldav_events)
-        return convertor.get_resource_events(self._last_sync_datetime)
+        return convertor.get_resource_events()
 
     def set_last_sync_datetime(self):
         self._last_sync_datetime = arrow.now().isoformat()
@@ -98,7 +98,7 @@ class GoogleCalendarClient(object):
             "calendar", "v3", credentials=self._credentials, cache_discovery=False
         )
 
-    def get_events(self, calendar_id, events):
+    def flatten_event_response(self, calendar_id, events):
         """Get all events items from paginated api response
 
         :param calendar_id: google calendar id
@@ -130,8 +130,24 @@ class GoogleCalendarClient(object):
         # will be a full sync if sync_token is None
         events = self._service.events().list(maxResults=2500, calendarId=calendar_id, syncToken=sync_token).execute()
 
-        return self.get_events(calendar_id, events)
+        return self.flatten_event_response(calendar_id, events)
 
     def save_sync_token(self):
         with open(self._config["sync_token_path"], "w") as f:
             json.dump(self._sync_token, f)
+
+    def get_events(self, calendar_id, time_min):
+        """get all events based on updated_min
+
+        :param calendar_id: calendarId: string, Calendar identifier. To retrieve calendar IDs call the calendarList.list method. If you want to access the primary calendar of the currently logged in user, use the "primary" keyword.
+        :param time_min: arrow object. Google api takes string, Lower bound (exclusive) for an event's end time to filter by. Must be an RFC3339 timestamp with mandatory time zone offset, for example, 2011-06-03T10:00:00-07:00, 2011-06-03T10:00:00Z
+        :returns: 
+        :rtype: 
+
+        """
+        all_events = []
+        events = self._service.events().list(maxResults=2500, calendarId=calendar_id, timeMin=time_min.isoformat()).execute()
+        for event in events.get("items", []):
+            event['timeZone'] = events['timeZone']
+            all_events.append(resource.EventResource.init_from_gcal(event))
+        return all_events
