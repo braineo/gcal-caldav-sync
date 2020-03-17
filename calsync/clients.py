@@ -151,3 +151,10 @@ class GoogleCalendarClient(object):
             event['timeZone'] = events['timeZone']
             all_events.append(resource.EventResource.init_from_gcal(event))
         return all_events
+
+    def add_event(self, calendar_id, event):
+        return self._service.events().insert(calendarId=calendar_id, body=event.get_gcal()).execute()
+
+
+    def update_event(self, calendar_id, event_id, event):
+        return self._service.events().patch(calendarId=calendar_id, eventId=event_id, body=event.get_gcal()).execute()
