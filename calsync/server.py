@@ -1,6 +1,6 @@
 import logging
 import caldav
-from . import resource
+import arrow
 
 log = logging.getLogger(__name__)
 
@@ -60,5 +60,20 @@ class EventSynchronizer(object):
             log.exception("cannot sync due to %r", e)
 
         # Compare caldav event and gcal event by UID and add/update events
-        import IPython
-        IPython.embed()
+        now = arrow.now()
+        caldav_events = self.caldav_client.get_events(self.caldav_calendar_url, now)
+        gcal_events = self.gcal_client.get_events(self.gcal_calendar_id, now)
+        gcal_uid_event_map = {event['iCalUID']: event for event in gcal_events}
+        for event in caldav_events:
+            try:
+                log.info('processing event %r', event)
+                uid = event['iCalUID']
+                if uid not in gcal_uid_event_map:
+                    log.info('create event with UID %r', uid)
+                    self.gcal_client.add_event(self.gcal_calendar_id, event)
+
+                elif event['updated'] > gcal_uid_event_map[uid]['updated']:
+                    log.info('updating event with UID %r', uid)
+                    self.gcal_client.update_event(self.gcal_calendar_id, gcal_uid_event_map[uid]['id'], event)
+            except Exception as e:
+                log.exception('cannot process event %r', e)
