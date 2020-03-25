@@ -42,6 +42,8 @@ class EventSynchronizer(object):
                 return
             log.info("creating event with UID %r", uid)
             ical_calender.add_event(event.get_ical())
+        except caldav.error.AuthorizationError as e:
+            log.info('cannot process event because authorization error %r', e)
         except Exception as e:
             log.error("unexpected error %r", e)
             raise e
