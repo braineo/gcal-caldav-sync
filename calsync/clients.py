@@ -128,7 +128,18 @@ class GoogleCalendarClient(object):
     def get_sync_events(self, calendar_id):
         sync_token = self._sync_token.get(calendar_id, None)
         # will be a full sync if sync_token is None
-        events = self._service.events().list(maxResults=2500, calendarId=calendar_id, syncToken=sync_token).execute()
+        try:
+            if sync_token:
+                events = self._service.events().list(maxResults=2500, calendarId=calendar_id, syncToken=sync_token).execute()
+            else:
+                events = self._service.events().list(maxResults=2500, calendarId=calendar_id, timeMin=arrow.now().isoformat()).execute()
+        except googleapiclient.errors.HttpError as e:
+            if e.resp.get('status', '') == '410':
+                # Sometimes sync tokens are invalidated by the server, for various reasons including token expiration or changes in related ACLs. In such cases, the server will respond to an incremental request with a response code 410. This should trigger a full wipe of the client’s store and a new full sync
+                log.info('sync token expired, receiveing all future events')
+                events = self._service.events().list(maxResults=2500, calendarId=calendar_id, timeMin=arrow.now().isoformat()).execute()
+            else:
+                raise e
 
         return self.flatten_event_response(calendar_id, events)
 
