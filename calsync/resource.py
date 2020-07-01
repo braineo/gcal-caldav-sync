@@ -26,6 +26,9 @@ class EventResource(dict):
     @classmethod
     def init_from_gcal(cls, gcal_event):
 
+        if gcal_event.get('status') == 'cancelled':
+            return cls(gcal_event)
+
         for key in ["created", "updated"]:
             if key in gcal_event:
                 gcal_event[key] = arrow.get(gcal_event[key])
