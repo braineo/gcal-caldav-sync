@@ -17,7 +17,6 @@ Developed under Python 3.8.1
 * Download your google calender API credentials [here](https://console.developers.google.com/apis/credentials) as `credentials.json`
 
 ### Settings
-/home/binbin/Develop/sync-caldav-to-google/config/
 * Put `credentials.json` in config folder
 * Copy `__init__.template.py` as `__init__.py` in config folder and fill in information
 * `pip install -r requirements.txt`
